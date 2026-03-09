@@ -242,4 +242,75 @@ describe('ag-sync import', () => {
       ),
     ).rejects.toThrow();
   });
+
+  it('does not import any family if another family fails planning', async () => {
+    const configPath = path.join(workspace.root, 'ag-sync.json');
+    const config = JSON.parse(
+      await fs.readFile(configPath, 'utf8'),
+    ) as ConfigFile;
+    config.automationDestDir = [
+      ...config.automationDestDir,
+      { path: './mirror-automations-dest' },
+    ];
+    await fs.writeFile(
+      configPath,
+      `${JSON.stringify(config, null, 2)}\n`,
+      'utf8',
+    );
+
+    await fs.writeFile(
+      path.join(workspace.fakeHome, '.codex', 'agents', 'new-agent.toml'),
+      'model = "import-me"\n',
+      'utf8',
+    );
+    await fs.mkdir(
+      path.join(workspace.root, 'mirror-automations-dest', 'retro'),
+      {
+        recursive: true,
+      },
+    );
+    await fs.mkdir(
+      path.join(workspace.fakeHome, '.codex', 'automations', 'retro'),
+      {
+        recursive: true,
+      },
+    );
+    await fs.writeFile(
+      path.join(
+        workspace.fakeHome,
+        '.codex',
+        'automations',
+        'retro',
+        'automation.toml',
+      ),
+      'id = "runtime-retro"\n',
+      'utf8',
+    );
+    await fs.writeFile(
+      path.join(
+        workspace.root,
+        'mirror-automations-dest',
+        'retro',
+        'automation.toml',
+      ),
+      'id = "mirror-retro"\n',
+      'utf8',
+    );
+
+    const result = await execCli(['import'], {
+      cwd: workspace.root,
+      env: {
+        HOME: workspace.fakeHome,
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain('multiple destination roots');
+    await expect(
+      fs.readFile(
+        path.join(workspace.root, 'agents', 'new-agent.toml'),
+        'utf8',
+      ),
+    ).rejects.toThrow();
+  });
 });

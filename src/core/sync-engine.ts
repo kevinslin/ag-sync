@@ -39,6 +39,12 @@ type ImportCandidate = {
   sourcePath: string;
   destinationRootPath: string;
 };
+type ImportFamilyPlan = {
+  kind: AssetKind;
+  targetSourceRoot: NormalizedSyncPathEntry;
+  candidates: ImportCandidate[];
+  missingDestinationRoots: number;
+};
 
 export async function syncWorkspace(
   config: NormalizedAgSyncConfig,
@@ -68,26 +74,41 @@ export async function syncWorkspace(
 export async function importWorkspace(
   config: NormalizedAgSyncConfig,
 ): Promise<ImportSummary> {
-  const families: ImportSummary['families'] = [];
-
-  families.push(
-    await importFamily(
+  const plans = [
+    await planImportFamily(
       'agent',
       config.agentSourceDir,
       config.agentDestDir,
       config.denyList,
     ),
-  );
-  families.push(
-    await importFamily(
+    await planImportFamily(
       'automation',
       config.automationSourceDir,
       config.automationDestDir,
       config.denyList,
     ),
-  );
+  ];
 
-  return { families };
+  for (const plan of plans) {
+    await ensureDir(plan.targetSourceRoot.absolutePath);
+    for (const candidate of plan.candidates) {
+      await copyFileWithParents(
+        candidate.sourcePath,
+        path.join(
+          plan.targetSourceRoot.absolutePath,
+          fromPosixPath(candidate.relativePath),
+        ),
+      );
+    }
+  }
+
+  return {
+    families: plans.map((plan) => ({
+      kind: plan.kind,
+      importedFiles: plan.candidates.length,
+      missingDestinationRoots: plan.missingDestinationRoots,
+    })),
+  };
 }
 
 async function syncFamily(
@@ -142,12 +163,12 @@ async function syncFamily(
   };
 }
 
-async function importFamily(
+async function planImportFamily(
   kind: AssetKind,
   sourceRoots: NormalizedSyncPathEntry[],
   destinationRoots: NormalizedSyncPathEntry[],
   denyList: string[],
-): Promise<ImportSummary['families'][number]> {
+): Promise<ImportFamilyPlan> {
   const targetSourceRoot = sourceRoots[0];
   if (!targetSourceRoot) {
     throw new Error(
@@ -171,20 +192,10 @@ async function importFamily(
     denyList,
   );
 
-  await ensureDir(targetSourceRoot.absolutePath);
-  for (const candidate of candidates) {
-    await copyFileWithParents(
-      candidate.sourcePath,
-      path.join(
-        targetSourceRoot.absolutePath,
-        fromPosixPath(candidate.relativePath),
-      ),
-    );
-  }
-
   return {
     kind,
-    importedFiles: candidates.length,
+    targetSourceRoot,
+    candidates,
     missingDestinationRoots,
   };
 }
