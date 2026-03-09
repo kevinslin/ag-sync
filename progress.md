@@ -8,6 +8,7 @@
 - Milestone 3 is complete and verified with a passing `pnpm precommit`.
 - Implementation is complete for the original requested scope.
 - Milestone 4 is complete and verified with a passing `pnpm precommit`.
+- GitHub Actions CI now validates pushes and pull requests with the repo's precommit gate.
 
 ## Milestones
 

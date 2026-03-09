@@ -92,3 +92,5 @@ pnpm build
 pnpm test
 pnpm precommit
 ```
+
+GitHub Actions runs the same `pnpm precommit` gate on pushes and pull requests and fails if the command rewrites tracked files.
