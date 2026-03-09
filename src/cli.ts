@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { importCommand } from './commands/import';
 import { initCommand } from './commands/init';
 import { syncCommand } from './commands/sync';
 import { error } from './utils/logger';
@@ -31,6 +32,15 @@ program
     await runCommand(() =>
       syncCommand(process.cwd(), { watch: options.watch }),
     );
+  });
+
+program
+  .command('import')
+  .description(
+    'Import net-new files from configured destinations into the first source root for each asset family',
+  )
+  .action(async () => {
+    await runCommand(() => importCommand(process.cwd()));
   });
 
 program.parseAsync(process.argv).catch((err: unknown) => {
