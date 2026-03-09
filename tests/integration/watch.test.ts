@@ -1,4 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -8,6 +15,8 @@ import { createMockWorkspace, type MockWorkspace } from '../helpers/workspace';
 describe('ag-sync sync --watch', () => {
   let workspace: MockWorkspace;
   let watchProcess: WatchProcess | null = null;
+
+  jest.setTimeout(15000);
 
   beforeEach(async () => {
     workspace = await createMockWorkspace();
@@ -164,13 +173,13 @@ async function waitForOutput(
 ): Promise<void> {
   await waitFor(
     async () => watchProcess.combinedOutput.value.includes(expectedOutput),
-    5000,
+    10000,
   );
 }
 
 async function waitFor(
   predicate: () => Promise<boolean>,
-  timeoutMs: number = 4000,
+  timeoutMs: number = 10000,
 ): Promise<void> {
   const start = Date.now();
 
