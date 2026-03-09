@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Document the end-to-end lifecycle for `ag-sync init`, `ag-sync sync`, and `ag-sync sync --watch` so implementation keeps delete/copy ordering correct.
+Document the end-to-end lifecycle for `ag-sync init`, `ag-sync sync`, `ag-sync import`, and `ag-sync sync --watch` so implementation keeps delete/copy ordering correct.
 
 ## Entry Assumptions
 
@@ -42,6 +42,18 @@ Document the end-to-end lifecycle for `ag-sync init`, `ag-sync sync`, and `ag-sy
    - Copy the merged snapshot into the destination.
 6. Report copied, removed, and skipped entries.
 
+### Import
+
+1. Load and validate `ag-sync.json`.
+2. Normalize source and destination paths.
+3. For each asset family, build the merged source snapshot using the same deny-list and ordered-overlay rules as `sync`.
+4. Scan each existing destination root and collect only files whose relative paths are missing from the merged source snapshot.
+5. Abort before any writes if:
+   - the same net-new relative path appears in multiple destination roots
+   - the first source root has a file-vs-directory collision at an import target path
+6. Copy the planned files into the first configured source root for that asset family.
+7. Report imported files and skipped missing destination roots.
+
 ### Watch
 
 1. Start from the `sync` flow’s validated config.
@@ -54,6 +66,7 @@ Document the end-to-end lifecycle for `ag-sync init`, `ag-sync sync`, and `ag-sy
 
 - `init` produces a ready-to-edit local repo plus `ag-sync.json`.
 - `sync` produces a destination tree consistent with the latest merged source snapshot.
+- `import` produces a source tree that includes destination-only files without overwriting existing source content.
 - `watch` hands back control only on process exit.
 
 ## Adjacent Flow Links
@@ -61,6 +74,7 @@ Document the end-to-end lifecycle for `ag-sync init`, `ag-sync sync`, and `ag-sy
 - `design.md`
 - `specs/spec-1-project-scaffold-and-init.md`
 - `specs/spec-2-sync-engine.md`
+- `specs/spec-4-import-command.md`
 - `specs/spec-3-watch-and-docs.md`
 
 ## Manual Notes 
@@ -68,4 +82,5 @@ Document the end-to-end lifecycle for `ag-sync init`, `ag-sync sync`, and `ag-sy
 [keep this for the user to add notes. do not change between edits]
 
 ## Changelog
+- 2026-03-09: Added the reverse-sync lifecycle for `ag-sync import`. (019cd042-8f2b-77c1-be49-55abadf7a975)
 - 2026-03-09: Added the core init/sync/watch lifecycle and snapshot boundaries for `ag-sync`. (019cd020-285a-7ae3-a04d-4c067c7eb3a1)

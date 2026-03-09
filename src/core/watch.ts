@@ -8,13 +8,18 @@ const WATCH_INTERVAL_MS = 100;
 
 export async function watchWorkspace(workspaceRoot: string): Promise<void> {
   const configPath = getConfigPath(workspaceRoot);
+  const initialConfig = await loadNormalizedConfig(workspaceRoot);
 
   let watcher: FSWatcher | null = null;
   let debounceTimer: NodeJS.Timeout | null = null;
   let isSyncing = false;
   let pendingSync = false;
   let shuttingDown = false;
-  let watchedPaths = new Set<string>();
+  let watchedPaths = new Set<string>([
+    configPath,
+    ...initialConfig.agentSourceDir.map((entry) => entry.absolutePath),
+    ...initialConfig.automationSourceDir.map((entry) => entry.absolutePath),
+  ]);
 
   const syncAndRefreshWatchList = async (): Promise<void> => {
     const normalizedConfig = await loadNormalizedConfig(workspaceRoot);
@@ -81,11 +86,12 @@ export async function watchWorkspace(workspaceRoot: string): Promise<void> {
     }
   };
 
-  watcher = chokidar.watch([configPath], {
+  watcher = chokidar.watch([...watchedPaths], {
     ignoreInitial: true,
     usePolling: true,
     interval: WATCH_INTERVAL_MS,
   });
+  await waitForWatcherReady(watcher);
 
   watcher.on('all', (eventName, changedPath) => {
     if (!debounceTimer) {
@@ -139,6 +145,14 @@ export async function watchWorkspace(workspaceRoot: string): Promise<void> {
 
     process.on('SIGTERM', () => {
       void shutdown();
+    });
+  });
+}
+
+async function waitForWatcherReady(watcher: FSWatcher): Promise<void> {
+  await new Promise<void>((resolve) => {
+    watcher.once('ready', () => {
+      resolve();
     });
   });
 }

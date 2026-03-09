@@ -13,7 +13,7 @@ The nearest prior art is the sibling `skillz` repo. We want to preserve its stre
 
 ## Goals
 
-- Provide an `ag-sync` CLI with `init`, `sync`, and `sync --watch`.
+- Provide an `ag-sync` CLI with `init`, `sync`, `sync --watch`, and `import`.
 - Store configuration in `ag-sync.json`.
 - Default local source directories to `./agents` and `./automations`.
 - Default destination directories to `~/.codex/agents` and `~/.codex/automations`.
@@ -21,12 +21,13 @@ The nearest prior art is the sibling `skillz` repo. We want to preserve its stre
 - Support multiple source and destination entries per asset family.
 - Support global deny-list glob patterns that exclude files or directories from sync.
 - Support destructive destination cleanup when `deleteExistingFromDest` is enabled.
-- Provide integration tests for `init`, `sync`, and watch behavior.
+- Allow `import` to pull destination files that are missing from all configured source roots back into the repo without overwriting existing source files.
+- Provide integration tests for `init`, `sync`, `import`, and watch behavior.
 
 ## Non-Goals
 
 - Syncing `skills/` or any prompt-injection output.
-- Bidirectional merge or conflict resolution between source and destination.
+- General bidirectional merge or conflict resolution between source and destination.
 - Git-driven sync, remote pull/push, or branch management automation.
 - Partial in-file edits; sync is native file copying only.
 - Automatic migration from the existing `~/.codex/agent-sync.json` format.
@@ -39,6 +40,7 @@ The CLI will be a small Node 18+ TypeScript app with four core layers:
    - `src/cli.ts` wires Commander commands.
    - `init` bootstraps config and imports live assets.
    - `sync` performs one sync cycle and optionally enters watch mode.
+   - `import` scans configured destinations for net-new files and copies them into the first configured source root for each asset family.
 
 2. Config model
    - `ag-sync.json` is the only control-plane file.
@@ -50,6 +52,7 @@ The CLI will be a small Node 18+ TypeScript app with four core layers:
    - For each family, the engine scans source roots, applies global deny rules, materializes a merged relative-path snapshot, and copies the snapshot into each destination.
    - Later source directories override earlier ones for the same relative path. This keeps layering deterministic and simple.
    - If `deleteExistingFromDest` is `true`, the engine clears destination contents before copying the merged snapshot for that family.
+   - `import` reuses the same snapshot semantics, but only copies destination files whose relative paths are missing from the merged source snapshot.
 
 4. Watch runner
    - `sync --watch` watches `ag-sync.json` plus configured source roots.
@@ -62,6 +65,34 @@ Critical lifecycle assumptions:
 - Config snapshot: `sync` loads and validates `ag-sync.json` at the start of each run. Watch mode reloads config before every sync cycle.
 - Source snapshot: each sync run snapshots source file trees before destination writes begin.
 - Consume boundary: destination writes only begin after the merged source snapshot is fully known for a given asset family.
+
+Snapshot semantics:
+
+```text
+run starts
+   |
+   v
+load ag-sync.json
+   |
+   v
+normalize paths + denyList
+   |
+   v
+scan source roots in config order
+   |
+   +--> source[0] --\
+   +--> source[1] ----> merged source snapshot (relative path -> file path)
+   +--> source[n] --/      later source roots win on duplicate paths
+                              |
+                              +--> sync: write snapshot to each destination root
+                              |
+                              +--> import: scan destination roots, keep only
+                                           paths missing from the snapshot, then
+                                           copy those files into the first
+                                           configured source root
+
+write boundary: no sync/import writes begin until the merged source snapshot is complete
+```
 
 This ordering avoids half-computed deletes and makes watch retries deterministic.
 
@@ -76,7 +107,7 @@ This ordering avoids half-computed deletes and makes watch retries deterministic
 ## Workflow Status
 
 - Current planning stage: Execution complete.
-- Workflow paused: yes, awaiting user follow-up on possible scope expansion.
+- Workflow paused: no.
 - Ready for spec generation: complete.
 - Ready for execution: complete.
 
@@ -89,12 +120,14 @@ Decide whether `ag-sync` should expand beyond `agents/` and `automations/` into 
 - Milestone 1: scaffold the TypeScript CLI, config schema, and `init` bootstrap flow.
 - Milestone 2: implement native sync for both asset families with deny-list filtering and destructive sync semantics.
 - Milestone 3: add `sync --watch`, documentation, and full verification.
+- Milestone 4: add `import` to pull net-new destination files back into the first configured source root.
 
 Verification signals:
 
 - `pnpm test` passes with integration coverage for init, sync, and watch behavior.
 - `ag-sync init` creates `ag-sync.json`, local source folders, and imported asset copies.
 - `ag-sync sync` mirrors local changes into destination test directories.
+- `ag-sync import` copies destination-only files into the first source root without overwriting existing source content.
 - `ag-sync sync --watch` performs follow-up syncs after source or config changes.
 
 ## Risks and Open Questions
@@ -102,6 +135,8 @@ Verification signals:
 - The live `~/.codex/automations` tree may contain nested artifacts that should not always be copied. The deny list is the first escape hatch.
 - Destructive destination cleanup is powerful; the implementation must guarantee the delete happens only after a valid merged source snapshot exists.
 - Multiple source directories can shadow each other. The chosen rule is ordered override, documented in README and tests.
+- `import` needs an explicit conflict contract when the same net-new relative path appears in multiple destination roots; silent precedence would be surprising.
+- `import` must stay non-destructive: it should not overwrite existing source files or delete destination-only content.
 - We should keep the config narrow now instead of abstracting for future asset types too early.
 
 ## Milestone Breakdown
@@ -114,6 +149,8 @@ Verification signals:
    - Support destructive destination resets via `deleteExistingFromDest`.
 3. `specs/spec-3-watch-and-docs.md`
    - Add `sync --watch`, debounce/queue semantics, README coverage, and verification polish.
+4. `specs/spec-4-import-command.md`
+   - Add `import` to copy destination-only files back into the repo without overwriting existing source content.
 
 ## Manual Notes
 
@@ -121,6 +158,8 @@ Verification signals:
 
 ## Changelog
 
+- 2026-03-09: Implemented milestone 4 with the `import` command, docs, and passing precommit verification. (019cd042-8f2b-77c1-be49-55abadf7a975)
+- 2026-03-09: Drafted milestone 4 for an `import` subcommand that pulls net-new destination assets back into source trees. (019cd042-8f2b-77c1-be49-55abadf7a975)
 - 2026-03-09: Completed milestone 3 with watch mode, docs, and a passing precommit run. (019cd020-285a-7ae3-a04d-4c067c7eb3a1)
 - 2026-03-09: Completed milestone 2 with ordered source overlays, deny-list filtering, and destructive native sync. (019cd020-285a-7ae3-a04d-4c067c7eb3a1)
 - 2026-03-09: Completed milestone 1 with the TypeScript scaffold, config model, and `ag-sync init`. (019cd020-285a-7ae3-a04d-4c067c7eb3a1)

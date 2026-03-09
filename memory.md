@@ -17,4 +17,6 @@
   - `~/.codex/automations`
 - `init` bootstraps the repo by copying live Codex assets into the local source roots.
 - `sync` is one-way from configured source roots to configured destination roots.
+- `import` copies destination-only files into the first configured source root for each asset family without overwriting existing source content.
 - Global `denyList` patterns apply to both asset families.
+- GitHub Actions CI runs `pnpm precommit` plus a clean-worktree check on pushes and pull requests.
