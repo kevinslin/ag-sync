@@ -2,6 +2,7 @@
   "name": "ag-sync",
   "version": "0.1.0",
   "description": "Sync Codex agent and automation assets between a repo and ~/.codex",
+  "license": "MIT",
   "main": "dist/cli.js",
   "bin": {
     "ag-sync": "./dist/cli.js"

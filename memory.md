@@ -3,6 +3,7 @@
 ## Durable Facts
 
 - Project name: `ag-sync`
+- License: `MIT`
 - Primary goal: sync Codex agent assets, excluding skills for now.
 - Config file: `ag-sync.json`
 - Asset families:
